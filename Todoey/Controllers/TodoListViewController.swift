@@ -7,18 +7,20 @@
 //
 
 import UIKit
+import CoreData
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: UITableViewController, UISearchBarDelegate{
   
   //let defaults = UserDefaults.standard
     var itemArray = [Item]()
-  let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+  
+  let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
   override func viewDidLoad() {
     super.viewDidLoad()
+    print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
     
     
-    
-    print (dataFilePath)
+    //print (dataFilePath)
     
     loadItems()
     //if let items = defaults.array(forKey: "TodoListArray") as? [Item]
@@ -47,7 +49,11 @@ class TodoListViewController: UITableViewController {
     return cell
   }
   override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-    //print(itemArray[indexPath.row])
+    
+    // to delete
+    //context.delete(itemArray[indexPath.row])
+    //itemArray.remove(at: indexPath.row)
+    
     if itemArray[indexPath.row].done == false {
       itemArray[indexPath.row].done = true
     }
@@ -55,8 +61,9 @@ class TodoListViewController: UITableViewController {
     {
       itemArray[indexPath.row].done = false
     }
+    
     saveItems()
-    //tableView.reloadData()
+    
     
     tableView.deselectRow(at: indexPath, animated: true)
   }
@@ -67,9 +74,11 @@ class TodoListViewController: UITableViewController {
     let alert = UIAlertController(title: "Add a to do item", message: "", preferredStyle: .alert)
     
     let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
-    
-      let newItem = Item()
+
+      
+      let newItem = Item(context: self.context)
       newItem.title = textField.text!
+      newItem.done = false
       
       self.itemArray.append(newItem)
       
@@ -93,31 +102,60 @@ class TodoListViewController: UITableViewController {
     //}
   }
   func saveItems(){
-    let encoder = PropertyListEncoder()
+    
     do{
-      let data = try encoder.encode(itemArray)
-      try data.write(to: dataFilePath!)
+      try context.save()
     }
     catch{
-      print ("Error encoding item array \(error)")
+      print ("Error saving context \(error)")
       
     }
     
     
     self.tableView.reloadData()
   }
-  func loadItems(){
-    if let data = try? Data(contentsOf: dataFilePath!) {
-      let decoder = PropertyListDecoder()
-      do{
-        itemArray = try decoder.decode([Item].self, from: data)
+  func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()){
+    //let request : NSFetchRequest<Item> = Item.fetchRequest()
+    do{
+      itemArray = try context.fetch(request)
+    } catch{
+      print("Error fetching data from context \(error)")
+    }
+    tableView.reloadData()
+  }
+  // or make extension below
+  func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+    let request : NSFetchRequest<Item> = Item.fetchRequest()
+    let predicate = NSPredicate(format: "title CONTAINS [cd] %@", searchBar.text! )
+    //print(searchBar.text!)
+    request.predicate = predicate
+    let sortDescriptor = NSSortDescriptor(key : "title", ascending: true)
+    request.sortDescriptors = [sortDescriptor]
+    loadItems(with: request)
+//    do{
+//      itemArray = try context.fetch(request)
+//    } catch{
+//      print("Error fetching data from context \(error)")
+//    }
+    //tableView.reloadData()
+  }
+  func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+    if searchBar.text?.count == 0{
+      loadItems()
+      DispatchQueue.main.async {
+        searchBar.resignFirstResponder()
       }
-      catch{
-        print ("Error decoding \(error)")
-      }
+      
     }
   }
 
-
 }
+//extension TodoListViewController : UISeachBarDelegate
+//{
+  //func searchBarSearchButtonClicked(_ searchBar: //UISearchBar)
+  //{
+    //let request : NSFetchRequest<Item> = Item.fetchRequest()
+    //print(searchBar.text)
+  //}
+//}
 
